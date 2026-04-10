@@ -6,7 +6,7 @@ from scipy.integrate import cumulative_trapezoid
 from scipy.spatial.transform import Rotation
 
 # --- Configuration ---
-FILE_PATH = 'v500s1/MPU6050RM3100.mat'
+FILE_PATH = 'v1500s3/MPU6050RM3100.mat'
 FS = 100.0  
 DT = 1.0 / FS 
 
@@ -155,44 +155,70 @@ def main():
     plt.tight_layout()
     plt.savefig('Fig1_Acceleration_Comparison.png', dpi=300)
 
-    # Convert positions to meters for plotting
-    ground_truth_pos_m = ground_truth_pos / 1000.0
-    raw_position_m = raw_position / 1000.0
-    filtered_position_m = filtered_position / 1000.0
+    # Convert positions to cm for plotting
+    ground_truth_pos_cm = ground_truth_pos / 10.0
+    raw_position_cm = raw_position / 10.0
+    filtered_position_cm = filtered_position / 10.0
     
-    ground_truth_pos_list = [ground_truth_pos_m[:, 0], ground_truth_pos_m[:, 1], ground_truth_pos_m[:, 2]]
-    calc_raw_pos_list = [raw_position_m[:, 0], raw_position_m[:, 1], raw_position_m[:, 2]]
-    calc_filt_pos_list = [filtered_position_m[:, 0], filtered_position_m[:, 1], filtered_position_m[:, 2]]
+    ground_truth_pos_list = [ground_truth_pos_cm[:, 0], ground_truth_pos_cm[:, 1], ground_truth_pos_cm[:, 2]]
+    calc_raw_pos_list = [raw_position_cm[:, 0], raw_position_cm[:, 1], raw_position_cm[:, 2]]
+    calc_filt_pos_list = [filtered_position_cm[:, 0], filtered_position_cm[:, 1], filtered_position_cm[:, 2]]
 
-    # --- FIGURE 2: Position Validation ---
-    fig2, axs2 = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
+    # --- FIGURE 2: Position Validation (Full Scale vs Zoomed) ---
+    fig2, axs2 = plt.subplots(3, 2, figsize=(15, 10), sharex=True)
 
     for i in range(3):
-        axs2[i].plot(time_axis, ground_truth_pos_list[i], label='Ground Truth', color='black', linewidth=2, linestyle='--')
-        axs2[i].plot(time_axis, calc_raw_pos_list[i], label='Calculated from Raw', color='red', alpha=0.7)
-        axs2[i].plot(time_axis, calc_filt_pos_list[i], label='Calculated from Filtered', color='blue')
-        axs2[i].set_ylabel(f'Position {axes_labels[i]} (m)')
-        axs2[i].legend(loc='upper left')
-        axs2[i].grid(True)
+        # Column 0: Full Scale
+        axs2[i, 0].plot(time_axis, ground_truth_pos_list[i], label='Ground Truth', color='black', linewidth=2, linestyle='--')
+        axs2[i, 0].plot(time_axis, calc_raw_pos_list[i], label='Calculated from Raw', color='red', alpha=0.7)
+        axs2[i, 0].plot(time_axis, calc_filt_pos_list[i], label='Calculated from Filtered', color='blue')
+        axs2[i, 0].set_ylabel(f'Position {axes_labels[i]} (cm)')
+        axs2[i, 0].set_title(f'{axes_labels[i]} Axis (Full Scale)')
+        axs2[i, 0].legend(loc='upper left')
+        axs2[i, 0].grid(True)
 
-    axs2[2].set_xlabel('Time (s)')
-    fig2.suptitle('Position Validation: Ground Truth vs. Estimated Positions')
+        # Column 1: Zoomed In
+        axs2[i, 1].plot(time_axis, ground_truth_pos_list[i], label='Ground Truth', color='black', linewidth=2, linestyle='--')
+        axs2[i, 1].plot(time_axis, calc_raw_pos_list[i], label='Calculated from Raw', color='red', alpha=0.7)
+        axs2[i, 1].plot(time_axis, calc_filt_pos_list[i], label='Calculated from Filtered', color='blue')
+        axs2[i, 1].set_ylim([-500, 500])
+        axs2[i, 1].set_title(f'{axes_labels[i]} Axis (Zoomed +/- 500 cm)')
+        axs2[i, 1].grid(True)
+
+    axs2[2, 0].set_xlabel('Time (s)')
+    axs2[2, 1].set_xlabel('Time (s)')
+    fig2.suptitle('Position Validation: Full Scale vs. Zoomed In')
     plt.tight_layout()
     plt.savefig('Fig2_Position_Validation.png', dpi=300)
 
     # --- FIGURE 3: 3D Trajectory ---
-    fig3 = plt.figure(figsize=(10, 8))
-    ax3 = fig3.add_subplot(111, projection='3d')
+    fig3 = plt.figure(figsize=(16, 8))
+    
+    # Full scale
+    ax3_full = fig3.add_subplot(121, projection='3d')
+    ax3_full.plot(ground_truth_pos_cm[:, 0], ground_truth_pos_cm[:, 1], ground_truth_pos_cm[:, 2], label='Ground Truth', color='black', linewidth=2, linestyle='--')
+    ax3_full.plot(raw_position_cm[:, 0], raw_position_cm[:, 1], raw_position_cm[:, 2], label='Path from Raw Data', color='red', alpha=0.6)
+    ax3_full.plot(filtered_position_cm[:, 0], filtered_position_cm[:, 1], filtered_position_cm[:, 2], label='Path from Filtered Data', color='blue', linewidth=1.5)
+    ax3_full.set_xlabel('X Position (cm)')
+    ax3_full.set_ylabel('Y Position (cm)')
+    ax3_full.set_zlabel('Z Position (cm)')
+    ax3_full.set_title('3D Trajectory (Full Scale)')
+    ax3_full.legend()
 
-    ax3.plot(ground_truth_pos_m[:, 0], ground_truth_pos_m[:, 1], ground_truth_pos_m[:, 2], label='Ground Truth', color='black', linewidth=2, linestyle='--')
-    ax3.plot(raw_position_m[:, 0], raw_position_m[:, 1], raw_position_m[:, 2], label='Path from Raw Data', color='red', alpha=0.6)
-    ax3.plot(filtered_position_m[:, 0], filtered_position_m[:, 1], filtered_position_m[:, 2], label='Path from Filtered Data', color='blue', linewidth=1.5)
+    # Zoomed
+    ax3_zoom = fig3.add_subplot(122, projection='3d')
+    ax3_zoom.plot(ground_truth_pos_cm[:, 0], ground_truth_pos_cm[:, 1], ground_truth_pos_cm[:, 2], label='Ground Truth', color='black', linewidth=2, linestyle='--')
+    ax3_zoom.plot(raw_position_cm[:, 0], raw_position_cm[:, 1], raw_position_cm[:, 2], label='Path from Raw Data', color='red', alpha=0.6)
+    ax3_zoom.plot(filtered_position_cm[:, 0], filtered_position_cm[:, 1], filtered_position_cm[:, 2], label='Path from Filtered Data', color='blue', linewidth=1.5)
+    ax3_zoom.set_xlim([-500, 500])
+    ax3_zoom.set_ylim([-500, 500])
+    ax3_zoom.set_zlim([-500, 500])
+    ax3_zoom.set_xlabel('X Position (cm)')
+    ax3_zoom.set_ylabel('Y Position (cm)')
+    ax3_zoom.set_zlabel('Z Position (cm)')
+    ax3_zoom.set_title('3D Trajectory (Zoomed +/- 500cm)')
 
-    ax3.set_xlabel('X Position (m)')
-    ax3.set_ylabel('Y Position (m)')
-    ax3.set_zlabel('Z Position (m)')
-    ax3.set_title('3D Trajectory Comparison')
-    ax3.legend()
+    plt.tight_layout()
     plt.savefig('Fig3_3D_Trajectory.png', dpi=300)
 
     print("Processing complete. Figures saved to the current directory.")
