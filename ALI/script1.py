@@ -6,7 +6,7 @@ from scipy.integrate import cumulative_trapezoid
 from scipy.spatial.transform import Rotation
 
 # --- Configuration ---
-FILE_PATH = 'v300s3/MPU6050RM3100.mat'
+FILE_PATH = 'v1000s1/MPU6050RM3100.mat'
 FS = 100.0  
 DT = 1.0 / FS 
 
@@ -26,15 +26,25 @@ def butter_highpass_filter(data, cutoff, fs, order=2):
     return filtfilt(b, a, data, axis=0)
 
 # --- Double Integration Function ---
+def calculate_raw_position(acceleration, dt):
+    """Pure double integration WITHOUT any filtering. This will demonstrate quadratic drift."""
+    # 1. Acceleration -> Velocity (No filter)
+    velocity = cumulative_trapezoid(acceleration, dx=dt, axis=0, initial=0)
+    
+    # 2. Velocity -> Position (No filter)
+    position = cumulative_trapezoid(velocity, dx=dt, axis=0, initial=0)
+    
+    return position
+
 def calculate_position(acceleration, dt, fs):
     """Double integrates acceleration with drift compensation."""
-    # 1. Acceleration -> Velocity
+    # 1. Acceleration -> Velocity (Increased highpass filtering from 0.02 Hz to 0.2 Hz)
     velocity = cumulative_trapezoid(acceleration, dx=dt, axis=0, initial=0)
-    velocity = butter_highpass_filter(velocity, cutoff=0.02, fs=fs, order=2)
+    velocity = butter_highpass_filter(velocity, cutoff=0.2, fs=fs, order=2)
     
-    # 2. Velocity -> Position
+    # 2. Velocity -> Position (Increased highpass filtering from 0.02 Hz to 0.2 Hz)
     position = cumulative_trapezoid(velocity, dx=dt, axis=0, initial=0)
-    position = butter_highpass_filter(position, cutoff=0.02, fs=fs, order=2)
+    position = butter_highpass_filter(position, cutoff=0.2, fs=fs, order=2)
     
     return position
 
@@ -63,10 +73,13 @@ def main():
     SCALE_FACTOR = 9810.0 
     world_accel_mm = world_accel * SCALE_FACTOR
     
-    # 3. Denoise and Calculate Positions
-    filtered_accel = butter_lowpass_filter(world_accel_mm, cutoff=5.0, fs=FS, order=4)
+    # 3. Denoise and Calculate Positions (Tuned lowpass filter stringency from 5.0 Hz to 1.0 Hz)
+    filtered_accel = butter_lowpass_filter(world_accel_mm, cutoff=1.0, fs=FS, order=4)
     
-    raw_position = calculate_position(world_accel_mm, DT, FS)
+    # Calculate pure raw position (with catastrophic mathematical drift)
+    raw_position = calculate_raw_position(world_accel_mm, DT)
+    
+    # Calculate filtered position (denoised high-pass integration)
     filtered_position = calculate_position(filtered_accel, DT, FS)
     
     start_coordinate = ground_truth_pos[0]
