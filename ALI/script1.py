@@ -6,7 +6,7 @@ from scipy.integrate import cumulative_trapezoid
 from scipy.spatial.transform import Rotation
 
 # --- Configuration ---
-FILE_PATH = 'v1000s1/MPU6050RM3100.mat'
+FILE_PATH = 'v500s1/MPU6050RM3100.mat'
 FS = 100.0  
 DT = 1.0 / FS 
 
@@ -105,22 +105,71 @@ def main():
     print(f"Total Improvement:     {raw_rmse - filtered_rmse:.2f} mm")
     print("-----------------------------------\n")
     
-    # 5. Plotting the 2D Error Graph
+    # ==========================================
+    # 5. Report Figure Generation
+    # ==========================================
     time_axis = np.arange(len(raw_error)) * DT
-    
-    plt.figure(figsize=(10, 6))
-    
-    plt.plot(time_axis, raw_error, label=f'Raw Error (RMSE: {raw_rmse:.0f}mm)', color='red', alpha=0.6, linewidth=1.5)
-    plt.plot(time_axis, filtered_error, label=f'Denoised Error (RMSE: {filtered_rmse:.0f}mm)', color='green', linewidth=2.5)
-    
-    plt.title('Position Estimation Error Over Time\n(Distance from Ground Truth)', fontsize=14)
-    plt.xlabel('Time (seconds)', fontsize=12)
-    plt.ylabel('Error Distance (millimeters)', fontsize=12)
-    plt.legend(fontsize=12)
-    plt.grid(True, linestyle='--', alpha=0.7)
-    
+    axes_labels = ['X', 'Y', 'Z']
+
+    # --- FIGURE 1: Raw vs Filtered Acceleration ---
+    fig1, axs1 = plt.subplots(3, 1, figsize=(10, 8), sharex=True)
+    raw_accs_plot = [world_accel[:, 0], world_accel[:, 1], world_accel[:, 2]]
+    filt_acc_g = filtered_accel / SCALE_FACTOR
+    filt_accs_plot = [filt_acc_g[:, 0], filt_acc_g[:, 1], filt_acc_g[:, 2]]
+
+    for i in range(3):
+        axs1[i].plot(time_axis, raw_accs_plot[i], label='Raw', alpha=0.5, color='red')
+        axs1[i].plot(time_axis, filt_accs_plot[i], label='Butterworth Filtered', color='blue', linewidth=1.5)
+        axs1[i].set_ylabel(f'Accel {axes_labels[i]} (g)')
+        axs1[i].legend(loc='upper right')
+        axs1[i].grid(True)
+
+    axs1[2].set_xlabel('Time (s)')
+    fig1.suptitle('Raw vs. Filtered Acceleration Measurements')
     plt.tight_layout()
-    plt.show()
+    plt.savefig('Fig1_Acceleration_Comparison.png', dpi=300)
+
+    # Convert positions to meters for plotting
+    ground_truth_pos_m = ground_truth_pos / 1000.0
+    raw_position_m = raw_position / 1000.0
+    filtered_position_m = filtered_position / 1000.0
+    
+    ground_truth_pos_list = [ground_truth_pos_m[:, 0], ground_truth_pos_m[:, 1], ground_truth_pos_m[:, 2]]
+    calc_raw_pos_list = [raw_position_m[:, 0], raw_position_m[:, 1], raw_position_m[:, 2]]
+    calc_filt_pos_list = [filtered_position_m[:, 0], filtered_position_m[:, 1], filtered_position_m[:, 2]]
+
+    # --- FIGURE 2: Position Validation ---
+    fig2, axs2 = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
+
+    for i in range(3):
+        axs2[i].plot(time_axis, ground_truth_pos_list[i], label='Ground Truth', color='black', linewidth=2, linestyle='--')
+        axs2[i].plot(time_axis, calc_raw_pos_list[i], label='Calculated from Raw', color='red', alpha=0.7)
+        axs2[i].plot(time_axis, calc_filt_pos_list[i], label='Calculated from Filtered', color='blue')
+        axs2[i].set_ylabel(f'Position {axes_labels[i]} (m)')
+        axs2[i].legend(loc='upper left')
+        axs2[i].grid(True)
+
+    axs2[2].set_xlabel('Time (s)')
+    fig2.suptitle('Position Validation: Ground Truth vs. Estimated Positions')
+    plt.tight_layout()
+    plt.savefig('Fig2_Position_Validation.png', dpi=300)
+
+    # --- FIGURE 3: 3D Trajectory ---
+    fig3 = plt.figure(figsize=(10, 8))
+    ax3 = fig3.add_subplot(111, projection='3d')
+
+    ax3.plot(ground_truth_pos_m[:, 0], ground_truth_pos_m[:, 1], ground_truth_pos_m[:, 2], label='Ground Truth', color='black', linewidth=2, linestyle='--')
+    ax3.plot(raw_position_m[:, 0], raw_position_m[:, 1], raw_position_m[:, 2], label='Path from Raw Data', color='red', alpha=0.6)
+    ax3.plot(filtered_position_m[:, 0], filtered_position_m[:, 1], filtered_position_m[:, 2], label='Path from Filtered Data', color='blue', linewidth=1.5)
+
+    ax3.set_xlabel('X Position (m)')
+    ax3.set_ylabel('Y Position (m)')
+    ax3.set_zlabel('Z Position (m)')
+    ax3.set_title('3D Trajectory Comparison')
+    ax3.legend()
+    plt.savefig('Fig3_3D_Trajectory.png', dpi=300)
+
+    print("Processing complete. Figures saved to the current directory.")
 
 if __name__ == "__main__":
     main()
