@@ -25,6 +25,27 @@ def butter_highpass_filter(data, cutoff, fs, order=2):
     b, a = butter(order, normal_cutoff, btype='high', analog=False)
     return filtfilt(b, a, data, axis=0)
 
+def kalman_filter_1d(measurements, Q=1e-5, R=1e-2):
+    """
+    1D Kalman filter to denoise a single axis of measurement.
+    """
+    n = len(measurements)
+    x_est = np.zeros(n)
+    P = np.zeros(n)
+    
+    x_est[0] = measurements[0]
+    P[0] = 1.0 
+    
+    for k in range(1, n):
+        x_pred = x_est[k-1]
+        P_pred = P[k-1] + Q
+        
+        K = P_pred / (P_pred + R)
+        x_est[k] = x_pred + K * (measurements[k] - x_pred)
+        P[k] = (1 - K) * P_pred
+        
+    return x_est
+
 # --- Double Integration Function ---
 def calculate_raw_position(acceleration, dt):
     """Pure double integration WITHOUT any filtering. This will demonstrate quadratic drift."""
@@ -73,8 +94,13 @@ def main():
     SCALE_FACTOR = 9810.0 
     world_accel_mm = world_accel * SCALE_FACTOR
     
-    # 3. Denoise and Calculate Positions (Tuned lowpass filter stringency from 5.0 Hz to 1.0 Hz)
-    filtered_accel = butter_lowpass_filter(world_accel_mm, cutoff=1.0, fs=FS, order=4)
+    # 3. Denoise and Calculate Positions (Using Kalman Filter instead of Butterworth)
+    filtered_accel = np.zeros_like(world_accel_mm)
+    Q_val = 1e-5
+    R_val = 1e-2
+    filtered_accel[:, 0] = kalman_filter_1d(world_accel_mm[:, 0], Q=Q_val, R=R_val)
+    filtered_accel[:, 1] = kalman_filter_1d(world_accel_mm[:, 1], Q=Q_val, R=R_val)
+    filtered_accel[:, 2] = kalman_filter_1d(world_accel_mm[:, 2], Q=Q_val, R=R_val)
     
     # Calculate pure raw position (with catastrophic mathematical drift)
     raw_position = calculate_raw_position(world_accel_mm, DT)
@@ -119,7 +145,7 @@ def main():
 
     for i in range(3):
         axs1[i].plot(time_axis, raw_accs_plot[i], label='Raw', alpha=0.5, color='red')
-        axs1[i].plot(time_axis, filt_accs_plot[i], label='Butterworth Filtered', color='blue', linewidth=1.5)
+        axs1[i].plot(time_axis, filt_accs_plot[i], label='Kalman Filtered', color='blue', linewidth=1.5)
         axs1[i].set_ylabel(f'Accel {axes_labels[i]} (g)')
         axs1[i].legend(loc='upper right')
         axs1[i].grid(True)
